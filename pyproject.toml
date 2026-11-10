@@ -1,0 +1,56 @@
+[project]
+name = "deye-monitor"
+version = "1.0.0"
+description = "Deye hybrid inverter monitor over a Solarman LSW-3 Wi-Fi logger, with a Telegram bot for power-outage alerts"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["deye", "solarman", "inverter", "telegram", "solar", "modbus"]
+requires-python = ">=3.12"
+dependencies = ["pysolarmanv5>=3.0", "tzdata"]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["deye*"]
+
+[project.scripts]
+deye = "deye.cli:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "PL"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # кирилиця і типографські символи в текстах — навмисно
+    "PLR2004",  # пороги з доменної області (напруга, температура) читабельніші числами
+    "PLR0913",  # конструктори з DI мають багато залежностей
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "N802"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["deye", "helpers"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "tests"
+
+[[tool.mypy.overrides]]
+module = ["pysolarmanv5", "umodbus.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["test_bot", "test_config", "test_link", "test_render", "test_watch", "helpers"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false

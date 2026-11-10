@@ -1,0 +1,17 @@
+# секрети й дані користувачів
+.env
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+
+# локальні інструменти
+.idea/
+.junie/
+.claude/
+.omc/
+.DS_Store

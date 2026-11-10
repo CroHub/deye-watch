@@ -1,0 +1,52 @@
+# Усе запускається в Docker. Команди — див. Makefile або README.
+name: deye
+
+x-dev: &dev
+  image: deye-dev
+  build: { context: ., target: dev }
+  profiles: [tools]
+  working_dir: /src
+  environment:
+    PYTHONPATH: /src:/src/tests
+    PYTHONDONTWRITEBYTECODE: 1
+    MYPY_CACHE_DIR: /tmp/mypy
+    RUFF_CACHE_DIR: /tmp/ruff
+  volumes:
+    - .:/src:ro
+
+services:
+  # Фоновий бот: моніторинг інвертора + Telegram. Код — в образі, дані — у ./data.
+  watch:
+    image: deye
+    build: { context: ., target: prod }
+    container_name: deye-watch
+    command: watch
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+
+  # Разові команди з поточним кодом без перезбирання образу: info | live [sec] | dump START END | tg
+  cli:
+    image: deye
+    profiles: [tools]
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./deye:/app/deye:ro
+      - ./data:/app/data
+
+  # Тести з поточним кодом. До інвертора й Telegram не звертаються.
+  test:
+    <<: *dev
+    entrypoint: [python3, -m, unittest, discover, -s, tests]
+
+  # ruff + mypy strict.
+  lint:
+    <<: *dev
+    entrypoint: [sh, -c, "ruff check deye tests && mypy deye tests"]
