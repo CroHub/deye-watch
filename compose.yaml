@@ -32,6 +32,7 @@ services:
   # Разові команди з поточним кодом без перезбирання образу: info | live [sec] | dump START END | tg
   cli:
     image: deye
+    build: { context: ., target: prod }
     profiles: [tools]
     network_mode: host
     env_file:
