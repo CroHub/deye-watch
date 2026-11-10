@@ -41,8 +41,12 @@ def build_watcher(settings: Settings, *, interval: int, link: Link, api: BotApi 
         ],
     )
     pause: Pause = Sleep(clock)
+    if bot and not admin:
+        log.warning("TELEGRAM_ADMIN не задано — нові користувачі не зможуть підписатися (схвалювати нікому)")
     if bot:
-        handler = CommandHandler(bot, users=users, admin=admin, read=link.read, texts=texts, notifier=notifier)
+        handler = CommandHandler(bot, users=users, requests=UserStore(settings.requests_file),
+                                 blocked=UserStore(settings.blocked_file), admin=admin, read=link.read, texts=texts,
+                                 notifier=notifier)
         handler.setup_menu()
         pause = BotListener(bot, handler.handle, clock)
 

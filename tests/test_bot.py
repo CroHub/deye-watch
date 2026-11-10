@@ -2,9 +2,11 @@
 import json
 import unittest
 import urllib.error
+from dataclasses import replace
 from typing import ClassVar
 
 from deye.bot.commands import MAX_NAME
+from deye.config import TelegramConfig
 from deye.telegram import Message, TelegramBot
 from helpers import ADMIN, READING, USER, BotTestCase, http_error, msg, reading
 
@@ -12,21 +14,79 @@ NEW = "3"
 
 
 class RegistrationTest(BotTestCase):
-    def test_start_asks_for_name_then_name_registers(self):
-        self.run_watch([READING, READING], inbox=[(1, msg(NEW, "/start")), (1, msg(NEW, "  Олена   Петрівна "))])
-        ask, welcome = self.to(NEW)
-        self.assertIn("Напиши своє ім'я", ask.text)
-        self.assertIn("Олена Петрівна", welcome.text)
-        self.assertEqual(self.saved_users()[NEW], "Олена Петрівна")
+    def request(self, *texts: str) -> None:
+        self.run_watch([READING, READING], inbox=[(1, msg(NEW, t)) for t in texts])
 
-    def test_new_user_notice_goes_to_admin_only(self):
-        self.run_watch([READING, READING], inbox=[(1, msg(NEW, "Олена"))])
-        self.assertTrue(any("новий користувач бота: Олена" in s.text for s in self.to(ADMIN)))
-        self.assertFalse(any("новий користувач" in s.text for s in self.to(USER)))
+    def test_start_asks_for_name_then_name_becomes_request(self):
+        self.request("/start", "  Олена   Петрівна ")
+        ask, sent = self.to(NEW)
+        self.assertIn("Напиши своє ім'я", ask.text)
+        self.assertIn("Запит надіслано власнику", sent.text)
+        self.assertNotIn(NEW, self.saved_users())
+        self.assertEqual(self.saved_users("requests.json")[NEW], "Олена Петрівна")
+
+    def test_request_goes_to_admin_with_buttons(self):
+        self.request("Олена")
+        [req] = [s for s in self.to(ADMIN) if s.buttons]
+        self.assertIn("Олена", req.text)
+        self.assertEqual(req.buttons, [("✅ Додати", f"/approve {NEW}"), ("❌ Відхилити", f"/reject {NEW}")])
+        self.assertFalse(any("Олена" in s.text for s in self.to(USER)))
+
+    def test_pending_user_gets_no_alerts_and_cannot_spam_admin(self):
+        self.run_watch([READING, READING, reading(grid_on=False)],
+                       inbox=[(1, msg(NEW, "Олена")), (1, msg(NEW, "/info")), (1, msg(NEW, "Олена"))])
+        self.assertEqual(len([s for s in self.to(ADMIN) if s.buttons]), 1)
+        self.assertTrue(all("Світло" not in s.text for s in self.to(NEW)))
+        self.assertEqual(sum("Запит уже надіслано" in s.text for s in self.to(NEW)), 2)
+
+    def test_approve_button_subscribes_user(self):
+        press = msg(ADMIN, f"/approve {NEW}", callback_id="cq1", message_id=55)
+        self.run_watch([READING, READING, reading(grid_on=False)], inbox=[(1, msg(NEW, "Олена")), (2, press)])
+        self.assertEqual(self.saved_users()[NEW], "Олена")
+        self.assertEqual(self.saved_users("requests.json"), {})
+        self.assertTrue(any("Запит підтверджено" in s.text for s in self.to(NEW)))
+        self.assertTrue(any("Світло зникло" in s.text for s in self.to(NEW)))
+        edit = dict(self.api.calls)["editMessageText"]
+        self.assertEqual((edit["message_id"], edit["text"]), (55, "✅ Олена — додано."))
+
+    def test_reject_blocks_further_requests(self):
+        press = msg(ADMIN, f"/reject {NEW}", callback_id="cq1", message_id=55)
+        self.run_watch([READING, READING, READING],
+                       inbox=[(1, msg(NEW, "Олена")), (2, press), (3, msg(NEW, "Олена знову"))])
+        self.assertNotIn(NEW, self.saved_users())
+        self.assertEqual(self.saved_users("blocked.json")[NEW], "Олена")
+        self.assertIn("відхилив", self.to(NEW)[-1].text)  # після відмови бот мовчить
+        self.assertEqual(len([s for s in self.to(ADMIN) if s.buttons]), 1)
+
+    def test_second_press_on_handled_request(self):
+        inbox = [(1, msg(NEW, "Олена")), (2, msg(ADMIN, f"/approve {NEW}")), (2, msg(ADMIN, f"/reject {NEW}"))]
+        self.run_watch([READING, READING, READING], inbox=inbox)
+        self.assertIn(NEW, self.saved_users())
+        self.assertTrue(any("уже оброблено" in s.text for s in self.to(ADMIN)))
+
+    def test_only_admin_can_approve(self):
+        self.run_watch([READING, READING, READING], inbox=[(1, msg(NEW, "Олена")), (2, msg(USER, f"/approve {NEW}"))])
+        self.assertNotIn(NEW, self.saved_users())
+
+    def test_admin_registers_without_approval(self):
+        self.run_watch([READING, READING, READING],
+                       inbox=[(1, msg(ADMIN, "/stop")), (2, msg(ADMIN, "Roman"))])
+        self.assertEqual(self.saved_users()[ADMIN], "Roman")
+
+    def test_without_admin_registration_is_closed(self):
+        self.settings = replace(self.settings, telegram=TelegramConfig(token="test"))
+        self.request("Олена")
+        self.assertEqual(self.to(NEW)[-1].text, "Реєстрацію закрито.")
+        self.assertEqual(self.saved_users("requests.json"), {})
+
+    def test_users_shows_pending_requests(self):
+        self.run_watch([READING, READING, READING], inbox=[(1, msg(NEW, "Олена")), (2, msg(ADMIN, "/users"))])
+        listing = next(s for s in self.to(ADMIN) if "Користувачі" in s.text)
+        self.assertIn("Чекають на схвалення: 1", listing.text)
 
     def test_long_name_is_truncated(self):
-        self.run_watch([READING, READING], inbox=[(1, msg(NEW, "А" * 100))])
-        self.assertEqual(len(self.saved_users()[NEW]), MAX_NAME)
+        self.request("А" * 100)
+        self.assertEqual(len(self.saved_users("requests.json")[NEW]), MAX_NAME)
 
 
 class StopTest(BotTestCase):
@@ -37,10 +97,11 @@ class StopTest(BotTestCase):
         self.assertFalse(any("Світло зникло" in s.text for s in self.to(USER)))
         self.assertTrue(any("відписка" in s.text for s in self.to(ADMIN)))
 
-    def test_writing_again_after_stop_re_registers(self):
+    def test_coming_back_after_stop_needs_approval_again(self):
         self.run_watch([READING, READING, READING],
                        inbox=[(1, msg(USER, "/stop")), (2, msg(USER, "/start")), (2, msg(USER, "Яна"))])
-        self.assertEqual(self.saved_users()[USER], "Яна")
+        self.assertNotIn(USER, self.saved_users())
+        self.assertEqual(self.saved_users("requests.json")[USER], "Яна")
 
 
 class AdminCommandsTest(BotTestCase):

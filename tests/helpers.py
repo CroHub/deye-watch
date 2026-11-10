@@ -176,8 +176,9 @@ class BotTestCase(unittest.TestCase):
     def to(self, chat_id: str) -> list[Sent]:
         return [s for s in self.sent if s.chat_id == chat_id]
 
-    def saved_users(self) -> dict[str, str]:
-        users: dict[str, str] = json.loads((self.data / "users.json").read_text())
+    def saved_users(self, file: str = "users.json") -> dict[str, str]:
+        path = self.data / file
+        users: dict[str, str] = json.loads(path.read_text()) if path.exists() else {}
         return users
 
     def run_watch(self, actions: list, inbox: list[tuple[int, Message]] | None = None,

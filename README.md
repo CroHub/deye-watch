@@ -42,8 +42,9 @@ Without `make`: `docker compose up -d --build watch`.
   (e.g. from [@userinfobot](https://t.me/userinfobot)).
 - Battery capacity, SOC thresholds, tariff and timezone are in `.env.example`.
 
-> ⚠️ The bot is open: anyone who finds it in Telegram and sends a name gets alerts and can use `/info`.
-> The owner is notified about every new user and can drop them with `/remove`.
+> 🔒 Sign-ups need the owner's approval: a newcomer sends their name, the owner gets a request with
+> **Approve / Reject** buttons. Rejected users are ignored from then on (`data/blocked.json` — delete an entry
+> there to let them ask again). Without `TELEGRAM_ADMIN` nobody can sign up.
 
 ### Commands
 
@@ -63,8 +64,8 @@ Same without `make`: `docker compose run --rm cli info`, `docker compose run --r
 
 ### Telegram
 
-A new user sends the bot their name and starts receiving alerts. Commands: `/info`, `/stop`;
-the owner also has `/users` and `/remove`.
+A new user sends the bot their name; once the owner approves the request, alerts start coming.
+Commands: `/info`, `/stop`; the owner also has `/users` (including pending requests) and `/remove`.
 
 ## Architecture
 
@@ -89,7 +90,7 @@ deye/
     alarms.py       rules: GridAlarm, LowBatteryAlarm, LinkHealth
     notifier.py     Notifier — everyone / owner only
     watcher.py      Monitor (one poll), Sleep/BotListener (pause), Watcher (loop)
-  bot/commands.py   CommandHandler — /info, /stop, /users, /remove, registration
+  bot/commands.py   CommandHandler — /info, /stop, /users, /remove, sign-up with owner approval
   app.py            composition root: wires dependencies
   cli.py            command line (argparse)
 ```
@@ -104,8 +105,11 @@ Code comments are in Ukrainian.
 
 ## Data
 
-`data/users.json` — bot users (chat_id → name); `data/state.json` — last grid state, so the outage timer survives
-restarts.
+Created automatically in `data/` (not in git):
+
+- `users.json` — subscribed users (chat_id → name);
+- `requests.json` — sign-up requests awaiting approval; `blocked.json` — rejected users;
+- `state.json` — last grid state, so the outage timer survives restarts.
 
 ## License
 

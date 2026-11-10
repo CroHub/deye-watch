@@ -56,6 +56,14 @@ class Settings:
         return self.data_dir / "users.json"
 
     @property
+    def requests_file(self) -> Path:
+        return self.data_dir / "requests.json"
+
+    @property
+    def blocked_file(self) -> Path:
+        return self.data_dir / "blocked.json"
+
+    @property
     def state_file(self) -> Path:
         return self.data_dir / "state.json"
 
