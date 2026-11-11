@@ -40,6 +40,16 @@ class GridEventsTest(BotTestCase):
         self.assertIn("не було 2 год", restored[0].text)
         self.assertTrue(json.loads((self.data / "state.json").read_text())["grid_on"])
 
+    def test_info_shows_how_long_grid_is_in_current_state(self):
+        since = time.time() - 3 * 86400 - 5 * 3600
+        (self.data / "state.json").write_text(json.dumps({"grid_on": True, "since": since}))
+        # /info читає інвертор сам, тож дії чергуються: опитування, /info, опитування, /info
+        self.run_watch([READING, READING, reading(grid_on=False), reading(grid_on=False)],
+                       inbox=[(1, msg(USER, "/info")), (3, msg(USER, "/info"))])
+        on, off = [s.text for s in self.to(USER) if "Мереж" in s.text]
+        self.assertIn("світло є вже 3 д 5 год", on)
+        self.assertIn("світла немає вже 0 хв", off)
+
 
 class LowBatteryTest(BotTestCase):
     def test_low_battery_warns_everyone_once_per_discharge(self):

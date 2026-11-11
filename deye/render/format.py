@@ -15,6 +15,16 @@ def duration(hours: float | None) -> str:
     return f"{h} год {m:02d} хв" if h else f"{m} хв"
 
 
+def elapsed(seconds: float) -> str:
+    """Скільки триває стан: 300 → «5 хв», 9000 → «2 год 30 хв», 200000 → «2 д 7 год»."""
+    minutes = max(round(seconds / 60), 0)
+    days, minutes = divmod(minutes, 24 * 60)
+    h, m = divmod(minutes, 60)
+    if days:
+        return f"{days} д {h} год"
+    return f"{h} год {m:02d} хв" if h else f"{m} хв"
+
+
 def soc_level(pct: int) -> int:
     """0 — критично, 1 — низько, 2 — середньо, 3 — добре."""
     return sum(pct >= band for band in SOC_BANDS)

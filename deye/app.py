@@ -32,12 +32,13 @@ def build_watcher(settings: Settings, *, interval: int, link: Link, api: BotApi 
     notifier = Notifier(bot, users, admin, clock)
     texts = TelegramTexts(settings.battery, settings.tariff, clock)
 
+    grid = GridAlarm(GridStateStore(settings.state_file), notifier, texts, clock)
     monitor = Monitor(
         read=link.read,
         health=LinkHealth(notifier, clock, settings.link_fails_to_report),
         alarms=[
             LowBatteryAlarm(settings.battery, notifier, texts),
-            GridAlarm(GridStateStore(settings.state_file), notifier, texts, clock),
+            grid,
         ],
     )
     pause: Pause = Sleep(clock)
@@ -46,7 +47,7 @@ def build_watcher(settings: Settings, *, interval: int, link: Link, api: BotApi 
     if bot:
         handler = CommandHandler(bot, users=users, requests=UserStore(settings.requests_file),
                                  blocked=UserStore(settings.blocked_file), admin=admin, read=link.read, texts=texts,
-                                 notifier=notifier)
+                                 notifier=notifier, grid_since=grid.since)
         handler.setup_menu()
         pause = BotListener(bot, handler.handle, clock)
 

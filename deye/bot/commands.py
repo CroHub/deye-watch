@@ -46,7 +46,8 @@ class Command:
 
 class CommandHandler:
     def __init__(self, bot: TelegramBot, *, users: UserStore, requests: UserStore, blocked: UserStore, admin: str,
-                 read: Callable[[], Reading], texts: TelegramTexts, notifier: Notifier) -> None:
+                 read: Callable[[], Reading], texts: TelegramTexts, notifier: Notifier,
+                 grid_since: Callable[[bool], float | None]) -> None:
         self._bot = bot
         self._users = users
         self._requests = requests  # чекають на схвалення власника
@@ -55,6 +56,7 @@ class CommandHandler:
         self._read = read
         self._texts = texts
         self._notifier = notifier
+        self._grid_since = grid_since  # відколи мережа в цьому стані (веде GridAlarm)
 
     def setup_menu(self) -> None:
         """Меню команд: спільне для всіх, а власнику — ще й адмінські."""
@@ -178,7 +180,9 @@ class CommandHandler:
     def _info(self, msg: Message) -> None:
         admin = self._is_admin(msg.chat_id)
         try:
-            self._bot.send(msg.chat_id, self._texts.report(self._read(), admin=admin), html=True)
+            r = self._read()
+            report = self._texts.report(r, admin=admin, grid_since=self._grid_since(r.grid_on))
+            self._bot.send(msg.chat_id, report, html=True)
         except LINK_ERRORS as e:
             if admin:
                 self._bot.send(msg.chat_id, f"⚠️ немає зв'язку з інвертором: {describe_error(e)}")

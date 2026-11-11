@@ -6,7 +6,7 @@ from deye.clock import Clock
 from deye.inverter import describe_error
 from deye.model import Battery, Reading
 from deye.render import TelegramTexts
-from deye.render.format import duration, soc_icon
+from deye.render.format import duration, elapsed, soc_icon
 from deye.storage import GridState, GridStateStore
 from deye.watch.notifier import Notifier
 
@@ -53,6 +53,12 @@ class GridAlarm:
             return
         self._store.save(self._state)
 
+    def since(self, grid_on: bool) -> float | None:
+        """Unix-час, відколи мережа в стані grid_on (None — ще не знаємо або стан щойно змінився)."""
+        if self._state is None or self._state.grid_on != grid_on:
+            return None
+        return self._state.since
+
     def _resume(self, r: Reading) -> GridState:
         """Перше опитування: якщо стан не змінився, поки нас не було, — продовжуємо відлік."""
         saved = self._store.load()
@@ -68,7 +74,7 @@ class GridAlarm:
         return GridState(r.grid_on, self._clock.time())
 
     def _elapsed(self, state: GridState) -> str:
-        return duration((self._clock.time() - state.since) / 3600)
+        return elapsed(self._clock.time() - state.since)
 
 
 class LinkHealth:

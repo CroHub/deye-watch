@@ -1,7 +1,7 @@
 """Тексти для Telegram (HTML): вузькі, під телефон, з кольоровою шкалою заряду."""
 from deye.clock import Clock
 from deye.model import Battery, Reading, diagnose
-from deye.render.format import charge_eta, duration, emoji_bar
+from deye.render.format import charge_eta, duration, elapsed, emoji_bar
 
 
 class TelegramTexts:
@@ -12,20 +12,24 @@ class TelegramTexts:
 
     # --- звіт /info ---
 
-    def report(self, r: Reading, admin: bool = False) -> str:
-        """Технічні попередження (стан інвертора, температура, напруга) — лише власнику."""
+    def report(self, r: Reading, admin: bool = False, grid_since: float | None = None) -> str:
+        """Технічні попередження (стан інвертора, температура, напруга) — лише власнику.
+        grid_since — unix-час, відколи мережа в поточному стані (None — невідомо)."""
         issues = [i for i in diagnose(r, self._battery) if admin or not i.technical]
         lines = [f"⚠️ <b>{i.text}</b>" for i in issues]
         if lines:
             lines.append("")
-        lines += [*self._status(r), "", *self._flow(r), "", *self._totals(r)]
+        lines += [*self._status(r, grid_since), "", *self._flow(r), "", *self._totals(r)]
         return "\n".join(lines)
 
-    def _status(self, r: Reading) -> list[str]:
+    def _status(self, r: Reading, grid_since: float | None) -> list[str]:
         if r.grid_on:
             grid = f"⚡ <b>Мережа є</b>  ·  {r.grid_v:.0f} V  ·  {r.grid_hz:.2f} Hz"
         else:
             grid = "✕ <b>Мережі немає</b>"
+        if grid_since is not None:
+            how_long = elapsed(self._clock.time() - grid_since)
+            grid += f"\n<i>{'світло є' if r.grid_on else 'світла немає'} вже {how_long}</i>"
         details = (f"<i>{r.batt_v:.1f} V  ·  {r.batt_t:.0f} °C  ·  "
                    f"запас {self._battery.reserve_kwh(r):.1f} кВт·год</i>")
         return [grid, self.battery(r), details]

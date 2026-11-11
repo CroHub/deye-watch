@@ -5,13 +5,19 @@ from deye.inverter import read_reading
 from deye.inverter.registers import s16, temperature
 from deye.model import Battery
 from deye.render import TelegramTexts, TerminalReport
-from deye.render.format import charge_eta, duration, emoji_bar, soc_icon
+from deye.render.format import charge_eta, duration, elapsed, emoji_bar, soc_icon
 from helpers import READING, FakeClock, reading
 
 BATTERY = Battery()
 
 
 class FormatTest(unittest.TestCase):
+    def test_elapsed(self):
+        self.assertEqual(elapsed(20), "0 хв")
+        self.assertEqual(elapsed(300), "5 хв")
+        self.assertEqual(elapsed(9000), "2 год 30 хв")
+        self.assertEqual(elapsed(2 * 86400 + 7 * 3600 + 100), "2 д 7 год")
+
     def test_duration(self):
         self.assertEqual(duration(None), "—")
         self.assertEqual(duration(0), "—")
